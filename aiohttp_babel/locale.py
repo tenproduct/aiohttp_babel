@@ -25,7 +25,7 @@
 import logging
 import os
 
-from babel.support import Translations, NullTranslations
+from babel.support import Translations, NullTranslations, UnknownLocaleError
 from babel.core import Locale as BabelCoreLocale
 from babel import dates
 
@@ -33,97 +33,6 @@ _default_locale = "en_US"
 _translations = {}
 _supported_locales = frozenset([_default_locale])
 _use_gettext = False
-
-
-def get(*locale_codes):
-    """Returns the closest match for the given locale codes.
-
-    We iterate over all given locale codes in order. If we have a tight
-    or a loose match for the code (e.g., "en" for "en_US"), we return
-    the locale. Otherwise we move to the next code in the list.
-
-    By default we return en_US if no translations are found for any of
-    the specified locales. You can change the default locale with
-    set_default_locale() below.
-    """
-    return Locale.get_closest(*locale_codes)
-
-
-def set_default_locale(code):
-    """Sets the default locale, used in get_closest_locale().
-
-    The default locale is assumed to be the language used for all strings
-    in the system. The translations loaded from disk are mappings from
-    the default locale to the destination locale. Consequently, you don't
-    need to create a translation file for the default locale.
-    """
-    global _default_locale
-    global _supported_locales
-    _default_locale = code
-    _supported_locales = frozenset(
-        list(_translations.keys()) + [_default_locale])
-
-
-def load_gettext_translations(directory, domain):
-    """Loads translations from gettext's locale tree"""
-    global _translations
-    global _supported_locales
-    global _use_gettext
-    for lang in os.listdir(directory):
-        if lang.startswith('.'):
-            continue  # skip .svn, etc
-        if os.path.isfile(os.path.join(directory, lang)):
-            continue
-        try:
-            translation = Translations.load(directory, [lang], domain)
-            if lang in _translations:
-                _translations[lang].merge(translation)
-            else:
-                _translations[lang] = translation
-
-        except Exception as e:
-            logging.error("Cannot load translation for '%s': %s", lang, str(e))
-            continue
-    _supported_locales = frozenset(
-        list(_translations.keys()) + [_default_locale])
-    _use_gettext = True
-    logging.info("Supported locales: %s", sorted(_supported_locales))
-
-
-def _default_locale_detector(request):
-    _code = request.cookies.get('locale', False)
-    if not _code:
-        # get locale from browser
-        locale_code = request.headers.get('ACCEPT-LANGUAGE', 'en')[:2]
-        try:
-            _code = str(locale.Locale.parse(locale_code, sep='-'))
-        except (ValueError, UnknownLocaleError):
-            pass
-
-    return _code
-
-_locale_detector = _default_locale_detector
-
-
-def set_locale_detector(detector):
-    """Sets language detector function.
-
-    Detector function takes a request and return a locale code.
-    >>> def detector(request):
-    ...     if request.url.host == 'es.example.com':
-    ...         return 'es'
-    ...     elif request.url.host == 'zh.example.com':
-    ...         return 'zh'
-    ...     else:
-    ...         return 'en'
-    """
-    global _locale_detector
-    _locale_detector = detector
-
-
-def detect_locale(request):
-    global _locale_detector
-    return _locale_detector(request)
 
 
 class Locale(BabelCoreLocale):
@@ -244,6 +153,97 @@ class Locale(BabelCoreLocale):
                           presentation switches to the next higher unit
         """
         return dates.format_timedelta(delta, granularity, threshold, self)
+
+
+def get(*locale_codes):
+    """Returns the closest match for the given locale codes.
+
+    We iterate over all given locale codes in order. If we have a tight
+    or a loose match for the code (e.g., "en" for "en_US"), we return
+    the locale. Otherwise we move to the next code in the list.
+
+    By default we return en_US if no translations are found for any of
+    the specified locales. You can change the default locale with
+    set_default_locale() below.
+    """
+    return Locale.get_closest(*locale_codes)
+
+
+def set_default_locale(code):
+    """Sets the default locale, used in get_closest_locale().
+
+    The default locale is assumed to be the language used for all strings
+    in the system. The translations loaded from disk are mappings from
+    the default locale to the destination locale. Consequently, you don't
+    need to create a translation file for the default locale.
+    """
+    global _default_locale
+    global _supported_locales
+    _default_locale = code
+    _supported_locales = frozenset(
+        list(_translations.keys()) + [_default_locale])
+
+
+def load_gettext_translations(directory, domain):
+    """Loads translations from gettext's locale tree"""
+    global _translations
+    global _supported_locales
+    global _use_gettext
+    for lang in os.listdir(directory):
+        if lang.startswith('.'):
+            continue  # skip .svn, etc
+        if os.path.isfile(os.path.join(directory, lang)):
+            continue
+        try:
+            translation = Translations.load(directory, [lang], domain)
+            if lang in _translations:
+                _translations[lang].merge(translation)
+            else:
+                _translations[lang] = translation
+
+        except Exception as e:
+            logging.error("Cannot load translation for '%s': %s", lang, str(e))
+            continue
+    _supported_locales = frozenset(
+        list(_translations.keys()) + [_default_locale])
+    _use_gettext = True
+    logging.info("Supported locales: %s", sorted(_supported_locales))
+
+
+def _default_locale_detector(request):
+    _code = request.cookies.get('locale', False)
+    if not _code:
+        # get locale from browser
+        locale_code = request.headers.get('ACCEPT-LANGUAGE', 'en')[:2]
+        try:
+            _code = str(Locale.parse(locale_code, sep='-'))
+        except (ValueError, UnknownLocaleError):
+            pass
+
+    return _code
+
+_locale_detector = _default_locale_detector
+
+
+def set_locale_detector(detector):
+    """Sets language detector function.
+
+    Detector function takes a request and return a locale code.
+    >>> def detector(request):
+    ...     if request.url.host == 'es.example.com':
+    ...         return 'es'
+    ...     elif request.url.host == 'zh.example.com':
+    ...         return 'zh'
+    ...     else:
+    ...         return 'en'
+    """
+    global _locale_detector
+    _locale_detector = detector
+
+
+def detect_locale(request):
+    global _locale_detector
+    return _locale_detector(request)
 
 
 if __name__ == '__main__':
