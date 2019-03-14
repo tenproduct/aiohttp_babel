@@ -25,8 +25,8 @@
 import logging
 import os
 
-from babel.support import Translations, NullTranslations, UnknownLocaleError
-from babel.core import Locale as BabelCoreLocale
+from babel.support import Translations, NullTranslations
+from babel.core import Locale as BabelCoreLocale, UnknownLocaleError
 from babel import dates
 
 _default_locale = "en_US"
